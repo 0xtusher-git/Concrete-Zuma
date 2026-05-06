@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CONCRETE ZUMA</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+        
+        :root {
+            --brand-yellow: #F4DE90;
+            --brand-yellow-glow: rgba(244, 222, 144, 0.4);
+            --bg-dark: #0A0A0B;
+        }
+
+        body { 
+            margin: 0; padding: 0; 
+            background: url('assets/background.png') center center / cover no-repeat fixed, var(--bg-dark);
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; touch-action: none; overflow: hidden; 
+            font-family: 'Outfit', sans-serif; color: white;
+        }
+        
+        #gameContainer { 
+            position: relative; 
+            width: min(100vw, 800px, calc(100vh * 4/3)); 
+            height: min(100vh, 600px, calc(100vw * 3/4)); 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border-radius: 12px; overflow: hidden;
+            border: 1px solid rgba(244, 222, 144, 0.1);
+        }
+        
+        #gameCanvas { 
+            background-color: transparent; 
+            width: 100%; height: 100%; display: block;
+        }
+        
+        #uiLayer { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            pointer-events: none; display: flex; justify-content: center; 
+            align-items: center; flex-direction: column; 
+        }
+        
+        .hidden { display: none !important; opacity: 0; pointer-events: none; }
+        
+        .overlay { 
+            background: rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            padding: 50px 60px; 
+            border: 1px solid rgba(244, 222, 144, 0.3); 
+            border-radius: 24px; 
+            text-align: center; pointer-events: auto;
+            transition: all 0.3s ease;
+            animation: floatIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes floatIn {
+            0% { opacity: 0; transform: translateY(20px) scale(0.95); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        button { 
+            background: linear-gradient(135deg, var(--brand-yellow), #e2c86e); 
+            color: #000; border: none; padding: 16px 40px; 
+            font-size: 20px; font-weight: 900; cursor: pointer; 
+            border-radius: 50px; font-family: 'Outfit', sans-serif; 
+            margin-top: 30px; text-transform: uppercase; letter-spacing: 1px;
+            box-shadow: 0 8px 20px var(--brand-yellow-glow);
+            transition: all 0.2s ease;
+        }
+        
+        button:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 12px 25px var(--brand-yellow-glow);
+            background: linear-gradient(135deg, #fceda6, #e6ce79); 
+        }
+        
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 4px 10px var(--brand-yellow-glow);
+        }
+        
+        h1 { 
+            color: var(--brand-yellow); font-size: 48px; font-weight: 900; 
+            margin: 0 0 10px 0; letter-spacing: -1px;
+            text-shadow: 0 2px 10px var(--brand-yellow-glow);
+        }
+        
+        h2 { 
+            color: #a0a0a0; font-size: 18px; font-weight: 400; margin: 0 0 20px 0; letter-spacing: 2px; text-transform: uppercase;
+        }
+        
+        .hud-text {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            color: var(--brand-yellow);
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.3);
+            padding: 8px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(244, 222, 144, 0.1);
+            backdrop-filter: blur(4px);
+        }
+
+        #scoreDisplay { position: absolute; top: 20px; left: 20px; font-size: 24px; }
+        #levelDisplay { position: absolute; top: 20px; right: 20px; font-size: 24px; }
+        #livesDisplay { 
+            position: absolute; top: 70px; right: 20px; font-size: 18px; 
+            color: #ff4a4a; text-shadow: 0 2px 10px rgba(255, 74, 74, 0.3);
+            background: rgba(0,0,0,0.3); padding: 6px 12px; border-radius: 12px;
+            border: 1px solid rgba(255, 74, 74, 0.1); backdrop-filter: blur(4px);
+        }
+        
+        .mute-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            padding: 8px 16px; font-size: 16px; font-weight: bold;
+            background: rgba(0,0,0,0.5); color: var(--brand-yellow);
+            border: 1px solid rgba(244, 222, 144, 0.2);
+            border-radius: 20px; backdrop-filter: blur(4px);
+            cursor: pointer; pointer-events: auto;
+            transition: all 0.2s ease;
+            font-family: 'Outfit', sans-serif;
+            z-index: 100;
+        }
+        .mute-btn:hover { transform: scale(1.05); background: rgba(0,0,0,0.7); }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <audio id="bgMusic" src="assets/04.mp3" loop autoplay></audio>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="uiLayer">
+            <div id="muteBtn" class="mute-btn">🎵 ON</div>
+            <div id="scoreDisplay" class="hud-text hidden">SCORE: 0</div>
+            <div id="levelDisplay" class="hud-text hidden">LEVEL: 1</div>
+            <div id="livesDisplay" class="hidden">LIVES: ♥♥♥</div>
+
+            <div id="startScreen" class="overlay">
+                <h1>CONCRETE ZUMA</h1>
+                <h2>@concretexyz Community Game</h2>
+                <button id="startBtn">START GAME</button>
+            </div>
+
+            <div id="levelClearScreen" class="overlay hidden">
+                <h1>LEVEL CLEAR!</h1>
+                <h2 id="levelScoreText">Score: 0</h2>
+            </div>
+
+            <div id="gameOverScreen" class="overlay hidden">
+                <h1 style="color: #ff2222;">GAME OVER</h1>
+                <h2 id="finalScoreText">Final Score: 0</h2>
+                <button id="restartBtn">RESTART</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const GAME_WIDTH = 800;
+        const GAME_HEIGHT = 600;
+        const BALL_RADIUS = 22;
+        const BALL_SPACING = 2;
+        const BALL_DIAMETER = BALL_RADIUS * 2 + BALL_SPACING;
+        
+        let state = 'START';
+        let score = 0, level = 1, lives = 3;
+        
+        const IMAGE_SOURCES = [
+            "assets/tile_6.png",
+            "assets/tile_5.jpg",
+            "assets/tile_3.jpg",
+            "assets/tile_11.jpg",
+            "assets/tile_10.jpg",
+            "assets/tile_1.jpg",
+            "assets/tile_2.jpg",
+            "assets/tile_4.jpg",
+            "assets/tile_7.jpg",
+            "assets/tile_8.jpg",
+            "assets/tile_9.jpg",
+            "assets/foW-vTDN_400x400.jpg",
+            "assets/uCsXA61e_400x400.jpg",
+            "assets/x5NXqcJv_400x400.jpg",
+            "assets/zY5SsZ5H_400x400.jpg"
+        ];
+        const loadedImages = [];
+        IMAGE_SOURCES.forEach(src => {
+            let img = new Image();
+            img.src = src;
+            loadedImages.push(img);
+        });
+        
+        const skullImg = new Image();
+        skullImg.src = "assets/Zuma skull.png";
+        const frogImg = new Image();
+        frogImg.src = "assets/zuma frog.jpg";
+
+        let path = [], pathLength = 0, distances = [];
+        let chain = [], projectiles = [], popups = [];
+        let baseSpeed = 0.8, numTypes = 3;
+        let mouseX = 400, mouseY = 300, shooterAngle = 0;
+        let currentBall = 0, nextBall = 0, cooldown = 0;
+        let comboCount = 0, comboTimer = 0, chainReactionMultiplier = 1;
+        let isRedFlash = false;
+
+        function getLevelParams(lvl) {
+            let types = 3;
+            let balls = 20 + lvl * 5;
+            let speed = 0.4 + (lvl * 0.05);
+
+            if (lvl >= 4 && lvl <= 6) types = 4;
+            if (lvl >= 7 && lvl <= 10) types = 5;
+            
+            if (lvl > 10) {
+                types = Math.min(IMAGE_SOURCES.length, 5 + Math.floor((lvl - 10) / 2));
+                speed = 0.9 + (lvl - 10) * 0.05;
+                balls = 70 + (lvl - 10) * 5;
+            }
+            return { types, balls, speed };
+        }
+
+        function addPoint(x, y) {
+            if (path.length > 0) {
+                let prev = path[path.length - 1];
+                pathLength += Math.hypot(x - prev.x, y - prev.y);
+            }
+            path.push({x, y});
+            distances.push(pathLength);
+        }
+
+        function generatePath(lvl) {
+            path = []; distances = []; pathLength = 0;
+            if (lvl === 1) {
+                let tempPath = [];
+                for (let a = 0; a <= Math.PI * 4; a += 0.05) {
+                    let r = 20 + a * 25;
+                    let angle = Math.PI - a;
+                    let x = 200 + r * Math.cos(angle);
+                    let y = 300 + r * Math.sin(angle);
+                    tempPath.push({x, y});
+                }
+                tempPath.reverse();
+                tempPath.forEach(p => addPoint(p.x, p.y));
+            } else if (lvl === 2) {
+                for (let t = 0; t <= 1; t += 0.002) {
+                    let y = 50 + t * 500;
+                    let x = 400 - 350 * Math.cos(t * Math.PI * 3);
+                    addPoint(x, y);
+                }
+            } else {
+                for(let t = 0.2; t <= 2*Math.PI - 0.2; t += 0.005) {
+                    let x = 400 + 300 * Math.cos(t);
+                    let y = 300 + 200 * Math.sin(2 * t);
+                    addPoint(x, y);
+                }
+            }
+        }
+
+        function getPointAtDistance(d) {
+            if (d <= 0) return path[0];
+            if (d >= pathLength) return path[path.length - 1];
+            let i = 0;
+            while(i < distances.length && distances[i] < d) i++;
+            if (i === 0) return path[0];
+            let p1 = path[i-1], p2 = path[i];
+            let d1 = distances[i-1], d2 = distances[i];
+            if (d2 === d1) return p1;
+            let t = (d - d1) / (d2 - d1);
+            return { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t };
+        }
+
+        function drawPath() {
+            ctx.lineCap = "round"; ctx.lineJoin = "round";
+            ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+            for(let p of path) ctx.lineTo(p.x, p.y);
+            ctx.lineWidth = 54; ctx.strokeStyle = "#2a2a2a"; ctx.stroke();
+            ctx.lineWidth = 52; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
+
+            let dangerDist = pathLength * 0.85;
+            ctx.beginPath();
+            let startedDanger = false;
+            for(let i=0; i<path.length; i++) {
+                if(distances[i] >= dangerDist) {
+                    if(!startedDanger) { ctx.moveTo(path[i].x, path[i].y); startedDanger = true; }
+                    else { ctx.lineTo(path[i].x, path[i].y); }
+                }
+            }
+            if (startedDanger) {
+                ctx.lineWidth = 52; ctx.shadowColor = "#ff2222"; ctx.shadowBlur = 15;
+                ctx.strokeStyle = "#2a0000"; ctx.stroke(); ctx.shadowBlur = 0;
+            }
+            
+            ctx.strokeStyle = "#222222"; ctx.lineWidth = 1; ctx.beginPath();
+            for (let d = 80; d < pathLength; d += 80) {
+                let p = getPointAtDistance(d);
+                ctx.moveTo(p.x - 10, p.y - 10); ctx.lineTo(p.x + 5, p.y + 2); ctx.lineTo(p.x + 15, p.y - 12);
+            }
+            ctx.stroke();
+
+            let endP = path[path.length - 1];
+            ctx.shadowColor = "#ff2222"; ctx.shadowBlur = 10;
+            if (skullImg.complete) {
+                ctx.drawImage(skullImg, endP.x - 24, endP.y - 24, 48, 48);
+            } else {
+                ctx.fillStyle = "white";
+                ctx.font = "32px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText("💀", endP.x, endP.y);
+            }
+            ctx.shadowBlur = 0;
+        }
+
+        function drawBall(x, y, type, radius = BALL_RADIUS) {
+            let img = loadedImages[type];
+            let scale = radius / BALL_RADIUS;
+            
+            ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+            ctx.clip();
+
+            if (img && img.complete) {
+                ctx.drawImage(img, -BALL_RADIUS, -BALL_RADIUS, BALL_RADIUS * 2, BALL_RADIUS * 2);
+            } else {
+                ctx.fillStyle = "#333";
+                ctx.fill();
+            }
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, BALL_RADIUS, 0, Math.PI * 2);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawShooter() {
+            let dx = mouseX - 400, dy = mouseY - 300;
+            shooterAngle = Math.atan2(dy, dx);
+            
+            ctx.save(); ctx.translate(400, 300); ctx.rotate(shooterAngle);
+            if (frogImg.complete) {
+                ctx.beginPath(); ctx.arc(0, 0, 45, 0, Math.PI * 2); ctx.clip();
+                ctx.drawImage(frogImg, -45, -45, 90, 90);
+                ctx.beginPath(); ctx.arc(0, 0, 45, 0, Math.PI * 2);
+                ctx.lineWidth = 3; ctx.strokeStyle = "#F4DE90"; ctx.stroke();
+            } else {
+                ctx.fillStyle = "#333"; ctx.fillRect(0, -7, 36, 14);
+                ctx.fillStyle = "#F4DE90"; ctx.fillRect(28, -7, 8, 14);
+                ctx.beginPath(); ctx.arc(0, 0, 38, 0, Math.PI * 2); ctx.fillStyle = "#1a1a1a"; ctx.fill();
+                ctx.lineWidth = 2; ctx.strokeStyle = "#F4DE90"; ctx.stroke();
+            }
+            ctx.restore();
+            
+            let cbX = 400 + Math.cos(shooterAngle) * 25;
+            let cbY = 300 + Math.sin(shooterAngle) * 25;
+            let nbX = 400 - Math.cos(shooterAngle) * 25;
+            let nbY = 300 - Math.sin(shooterAngle) * 25;
+            
+            drawBall(nbX, nbY, nextBall, 14);
+            drawBall(cbX, cbY, currentBall, BALL_RADIUS);
+        }
+
+        function aimAndFire(x, y) {
+            if (state !== 'PLAYING') return;
+            mouseX = x; mouseY = y;
+            if (cooldown <= 0) {
+                let dx = mouseX - 400, dy = mouseY - 300;
+                let angle = Math.atan2(dy, dx);
+                projectiles.push({
+                    x: 400 + Math.cos(angle) * 38, y: 300 + Math.sin(angle) * 38,
+                    vx: Math.cos(angle) * 14, vy: Math.sin(angle) * 14, type: currentBall
+                });
+                currentBall = nextBall;
+                nextBall = Math.floor(Math.random() * numTypes);
+                cooldown = 18;
+            }
+        }
+
+        function getPos(e) {
+            let rect = canvas.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            let scaleX = canvas.width / rect.width;
+            let scaleY = canvas.height / rect.height;
+            return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+        }
+        
+        canvas.addEventListener('mousemove', e => { let p = getPos(e); mouseX = p.x; mouseY = p.y; });
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); let p = getPos(e); mouseX = p.x; mouseY = p.y; }, {passive: false});
+        canvas.addEventListener('mousedown', e => { let p = getPos(e); aimAndFire(p.x, p.y); });
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); let p = getPos(e); aimAndFire(p.x, p.y); }, {passive: false});
+
+        document.getElementById('startBtn').addEventListener('click', initGame);
+        document.getElementById('restartBtn').addEventListener('click', initGame);
+
+        function updateHUD() {
+            document.getElementById('scoreDisplay').innerText = "SCORE: " + score;
+            document.getElementById('levelDisplay').innerText = "LEVEL: " + level;
+            let hearts = ""; for(let i=0; i<lives; i++) hearts += "♥";
+            document.getElementById('livesDisplay').innerText = "LIVES: " + hearts;
+        }
+
+        function checkMatches(index, isChainReaction) {
+            if (index < 0 || index >= chain.length) return false;
+            let type = chain[index].type;
+            let start = index, end = index;
+            
+            while(start > 0 && chain[start-1].type === type) {
+                if ((chain[start-1].d - BALL_DIAMETER) - chain[start].d > 5.0) break; 
+                start--;
+            }
+            while(end < chain.length - 1 && chain[end+1].type === type) {
+                if ((chain[end].d - BALL_DIAMETER) - chain[end+1].d > 5.0) break;
+                end++;
+            }
+            
+            let count = end - start + 1;
+            if (count >= 3) {
+                let pts = count === 3 ? 100 : count === 4 ? 250 : count === 5 ? 500 : 500 + (count - 5) * 150;
+                let mult = isChainReaction ? chainReactionMultiplier : 1;
+                
+                if (isChainReaction) chainReactionMultiplier++;
+                else chainReactionMultiplier = 2;
+                
+                if (!isChainReaction) {
+                    comboTimer = 120;
+                    comboCount++;
+                    let comboMult = comboCount > 1 ? comboCount : 1;
+                    mult *= comboMult;
+                }
+                
+                score += pts * mult;
+                updateHUD();
+                
+                let p = getPointAtDistance(chain[index].d);
+                popups.push({x: p.x, y: p.y, text: "+" + (pts * mult), life: 60});
+                
+                chain.splice(start, count);
+                if (start < chain.length) chain[start].gapWait = 30;
+                return true;
+            } else {
+                if (!isChainReaction) comboCount = 0;
+            }
+            return false;
+        }
+
+        function startLevelInternal(overrideBalls) {
+            let p = getLevelParams(level);
+            let numBalls = overrideBalls || p.balls;
+            generatePath(level);
+            
+            let startOffset = 0;
+            for(let i=0; i<path.length; i++) {
+                if (path[i].x > 30 && path[i].x < 770 && path[i].y > 30 && path[i].y < 570) {
+                    startOffset = distances[i];
+                    break;
+                }
+            }
+            
+            chain = []; baseSpeed = p.speed; numTypes = p.types;
+            
+            for (let i = 0; i < numBalls; i++) {
+                chain.push({ type: Math.floor(Math.random() * numTypes), d: startOffset - i * BALL_DIAMETER, gapWait: 0 });
+            }
+            
+            currentBall = Math.floor(Math.random() * numTypes);
+            nextBall = Math.floor(Math.random() * numTypes);
+            shooterAngle = 0; projectiles = []; popups = [];
+            comboCount = 0; comboTimer = 0; chainReactionMultiplier = 1;
+            state = 'PLAYING';
+        }
+
+        function initGame() {
+            score = 0; level = 1; lives = 3; updateHUD();
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('scoreDisplay').classList.remove('hidden');
+            document.getElementById('levelDisplay').classList.remove('hidden');
+            document.getElementById('livesDisplay').classList.remove('hidden');
+            
+            const music = document.getElementById('bgMusic');
+            const mBtn = document.getElementById('muteBtn');
+            if (music && music.paused && mBtn && mBtn.innerText.includes('ON')) {
+                music.play().catch(e => console.log('Audio blocked by browser:', e));
+            }
+            
+            startLevelInternal();
+        }
+
+        function gameLoop() {
+            requestAnimationFrame(gameLoop);
+            
+            if (state === 'START') {
+                ctx.clearRect(0, 0, 800, 600);
+                return;
+            }
+            
+            ctx.fillStyle = "#0d0d0f"; 
+            ctx.fillRect(0, 0, 800, 600);
+            drawPath();
+            
+            if (state === 'PLAYING') {
+                if (cooldown > 0) cooldown--;
+                if (comboTimer > 0) { comboTimer--; if(comboTimer <= 0) comboCount = 0; }
+                
+                if (chain.length > 0) {
+                    chain[0].d += baseSpeed;
+                    for (let i = 1; i < chain.length; i++) {
+                        let idealD = chain[i-1].d - BALL_DIAMETER;
+                        let gap = idealD - chain[i].d;
+                        
+                        if (gap > 0.1) {
+                            if (chain[i].gapWait > 0) chain[i].gapWait--;
+                            else {
+                                chain[i].d += (baseSpeed + 2.0);
+                                if (chain[i].d >= idealD) {
+                                    chain[i].d = idealD;
+                                    if (checkMatches(i, true)) break;
+                                }
+                            }
+                        } else {
+                            chain[i].d = idealD;
+                        }
+                    }
+                }
+                
+                if (chain.length > 0 && chain[0].d >= pathLength) {
+                    lives--; updateHUD();
+                    if (lives <= 0) {
+                        state = 'GAME_OVER';
+                        document.getElementById('finalScoreText').innerText = "Final Score: " + score;
+                        document.getElementById('gameOverScreen').classList.remove('hidden');
+                    } else {
+                        state = 'DIED'; isRedFlash = true;
+                        setTimeout(() => {
+                            isRedFlash = false;
+                            let p = getLevelParams(level);
+                            startLevelInternal(Math.max(10, p.balls - 10));
+                        }, 1000);
+                    }
+                } else if (chain.length === 0) {
+                    state = 'LEVEL_CLEAR';
+                    document.getElementById('levelScoreText').innerText = "Score: " + score;
+                    document.getElementById('levelClearScreen').classList.remove('hidden');
+                    setTimeout(() => {
+                        document.getElementById('levelClearScreen').classList.add('hidden');
+                        level++; updateHUD();
+                        startLevelInternal();
+                    }, 2000);
+                }
+            }
+            
+            for (let i = chain.length - 1; i >= 0; i--) {
+                let b = chain[i];
+                if (b.d > 0) {
+                    let pos = getPointAtDistance(b.d);
+                    drawBall(pos.x, pos.y, b.type);
+                }
+            }
+            
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                p.x += p.vx; p.y += p.vy;
+                
+                if (p.x - BALL_RADIUS < 0) { p.x = BALL_RADIUS; p.vx *= -1; }
+                else if (p.x + BALL_RADIUS > 800) { p.x = 800 - BALL_RADIUS; p.vx *= -1; }
+                
+                if (p.y < -50 || p.y > 650) { projectiles.splice(i, 1); continue; }
+                
+                let hit = false, closestIndex = -1, closestDist = Infinity;
+                for (let j = 0; j < chain.length; j++) {
+                    let b = chain[j];
+                    if (b.d <= 0) continue;
+                    let pos = getPointAtDistance(b.d);
+                    let dist = Math.hypot(p.x - pos.x, p.y - pos.y);
+                    if (dist < BALL_DIAMETER && dist < closestDist) { closestDist = dist; closestIndex = j; }
+                }
+                
+                if (closestIndex !== -1) {
+                    let b = chain[closestIndex];
+                    let posAhead = getPointAtDistance(b.d + BALL_RADIUS);
+                    let posBehind = getPointAtDistance(b.d - BALL_RADIUS);
+                    let distAhead = Math.hypot(p.x - posAhead.x, p.y - posAhead.y);
+                    let distBehind = Math.hypot(p.x - posBehind.x, p.y - posBehind.y);
+                    
+                    let insertIndex = closestIndex;
+                    if (distBehind < distAhead) insertIndex = closestIndex + 1;
+                    
+                    let newBall = { type: p.type, d: 0, gapWait: 0 };
+                    if (insertIndex === closestIndex) newBall.d = b.d;
+                    else newBall.d = b.d - BALL_DIAMETER;
+                    
+                    chain.splice(insertIndex, 0, newBall);
+                    for (let j = insertIndex + 1; j < chain.length; j++) chain[j].d -= BALL_DIAMETER;
+                    
+                    projectiles.splice(i, 1);
+                    checkMatches(insertIndex, false);
+                }
+            }
+            
+            for(let p of projectiles) drawBall(p.x, p.y, p.type);
+            drawShooter();
+            
+            for(let i=popups.length-1; i>=0; i--) {
+                popups[i].y -= 1; popups[i].life--;
+                if(popups[i].life <= 0) popups.splice(i, 1);
+                else {
+                    ctx.fillStyle = `rgba(244, 222, 144, ${popups[i].life/60})`;
+                    ctx.font = "900 24px Outfit"; ctx.textAlign = "center";
+                    ctx.fillText(popups[i].text, popups[i].x, popups[i].y);
+                }
+            }
+            
+            if (comboCount > 1) {
+                ctx.fillStyle = "#F4DE90"; ctx.font = "900 34px Outfit";
+                ctx.textAlign = "center"; ctx.fillText(comboCount + "x COMBO!", 400, 200);
+            }
+            
+            if (isRedFlash) { ctx.fillStyle = "rgba(255, 0, 0, 0.3)"; ctx.fillRect(0, 0, 800, 600); }
+        }
+        
+        const bgMusic = document.getElementById('bgMusic');
+        const muteBtn = document.getElementById('muteBtn');
+        let isMuted = false;
+
+        muteBtn.addEventListener('click', () => {
+            if (isMuted) {
+                bgMusic.play();
+                isMuted = false;
+                muteBtn.innerText = "🎵 ON";
+            } else {
+                bgMusic.pause();
+                isMuted = true;
+                muteBtn.innerText = "🎵 OFF";
+            }
+        });
+
+        // Attempt forced autoplay immediately
+        bgMusic.play().catch(() => {});
+        
+        // Fallback to first interaction if blocked by browser (covers clicks, touches, and keys)
+        const startAudio = () => {
+            if (!isMuted && bgMusic.paused) {
+                bgMusic.play().catch(() => {});
+            }
+            window.removeEventListener('click', startAudio);
+            window.removeEventListener('touchstart', startAudio);
+            window.removeEventListener('keydown', startAudio);
+        };
+        window.addEventListener('click', startAudio);
+        window.addEventListener('touchstart', startAudio);
+        window.addEventListener('keydown', startAudio);
+        
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
