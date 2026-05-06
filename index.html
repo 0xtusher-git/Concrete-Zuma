@@ -499,13 +499,6 @@
         }
 
         function initGame() {
-            const container = document.getElementById('gameContainer');
-            try {
-                if (container.requestFullscreen) container.requestFullscreen();
-                else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
-                else if (container.msRequestFullscreen) container.msRequestFullscreen();
-            } catch (e) { console.log("Fullscreen blocked or not supported"); }
-
             document.body.classList.add('game-started');
             score = 0; level = 1; lives = 3; updateHUD();
             document.getElementById('startScreen').classList.add('hidden');
